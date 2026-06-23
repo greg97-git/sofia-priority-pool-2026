@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sofia — LBPSB Priority Pool 2026-27</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; background: #f5f5f7; color: #1d1d1f; }
+
+  header { background: #1d3557; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  header h1 { font-size: 20px; font-weight: 700; }
+  header p  { font-size: 12px; opacity: .75; margin-top: 4px; }
+  .session-toggle { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.15); border-radius: 8px; padding: 8px 14px; cursor: pointer; user-select: none; font-size: 13px; font-weight: 600; color: white; border: 2px solid transparent; transition: all .2s; }
+  .session-toggle.active { background: #e63946; border-color: #ff6b6b; }
+  .session-toggle .dot { width: 10px; height: 10px; border-radius: 50%; background: #aaa; transition: background .2s; }
+  .session-toggle.active .dot { background: #fff; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .stats-bar { display: flex; gap: 12px; padding: 12px 24px; background: #2c4a6e; flex-wrap: wrap; }
+  .stat { background: rgba(255,255,255,.12); border-radius: 8px; padding: 8px 14px; color: white; text-align: center; transition: background .3s; }
+  .stat.alert { background: rgba(220,38,38,.4); }
+  .stat .n { font-size: 22px; font-weight: 700; }
+  .stat .l { font-size: 10px; opacity: .8; text-transform: uppercase; letter-spacing: .5px; }
+
+  .rules-banner { background: #fff3cd; border-left: 4px solid #e6a800; padding: 10px 24px; font-size: 12px; }
+  .rules-banner strong { color: #7a4100; }
+
+  .controls { display: flex; gap: 10px; padding: 12px 24px; background: white; border-bottom: 1px solid #e0e0e0; flex-wrap: wrap; align-items: flex-end; }
+  .controls label { font-size: 11px; color: #555; font-weight: 600; }
+  select, input[type=text] { font-size: 12px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 6px; background: white; }
+  .btn { padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .btn-primary { background: #1d3557; color: white; }
+  .btn-reset   { background: #e8e8e8; color: #333; }
+  .btn-danger  { background: #dc2626; color: white; }
+  .btn-secondary { background: #7c3aed; color: white; }
+  .filter-group { display: flex; flex-direction: column; gap: 3px; }
+
+  /* Drag hint banner */
+  .drag-hint { background: #ede9fe; border-left: 4px solid #7c3aed; padding: 8px 24px; font-size: 12px; color: #4c1d95; display: flex; align-items: center; gap: 8px; }
+
+  .table-wrap { overflow-x: auto; padding: 0 24px 24px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  thead th { background: #1d3557; color: white; padding: 9px 10px; font-size: 11px; text-align: left; white-space: nowrap; user-select: none; }
+  tbody tr { border-bottom: 1px solid #ececec; transition: opacity .2s, background .15s; }
+  tbody tr.draggable-row { cursor: grab; }
+  tbody tr.draggable-row:active { cursor: grabbing; }
+  tbody tr.dragging { opacity: .35; }
+  tbody tr.drag-over-top    { border-top: 3px solid #7c3aed !important; }
+  tbody tr.drag-over-bottom { border-bottom: 3px solid #7c3aed !important; }
+
+  /* Category colours */
+  .row-3402 { background: #dbeafe; }
+  .row-3403 { background: #dcfce7; }
+  .row-combo { background: #fef9c3; }
+
+  /* TAKEN state */
+  .row-taken { opacity: .4; background: #e5e7eb !important; cursor: default !important; }
+  .row-taken td { text-decoration: line-through; color: #6b7280 !important; }
+  .row-taken .badge { filter: grayscale(1); opacity: .6; }
+  .row-taken .taken-btn { background: #6b7280 !important; }
+
+  .drag-handle { color: #9ca3af; font-size: 16px; cursor: grab; padding: 0 6px; user-select: none; }
+  .drag-handle:hover { color: #7c3aed; }
+  .row-taken .drag-handle { cursor: default; color: #d1d5db; }
+
+  .rank-num { display: inline-block; width: 26px; height: 26px; border-radius: 50%; background: #1d3557; color: white; font-size: 11px; font-weight: 700; text-align: center; line-height: 26px; }
+  .rank-taken { background: #9ca3af; }
+  .rank-filtered { background: #e5e7eb; color: #9ca3af; border: 1px dashed #9ca3af; font-size: 10px; }
+
+  .taken-btn { padding: 3px 9px; border-radius: 5px; border: none; cursor: pointer; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all .15s; }
+  .taken-btn.mark   { background: #dc2626; color: white; }
+  .taken-btn.unmark { background: #16a34a; color: white; }
+
+  .badge { display: inline-block; border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .b-3402 { background: #2563eb; color: white; }
+  .b-3403 { background: #16a34a; color: white; }
+  .b-E2   { background: #7c3aed; color: white; }
+  .b-E3   { background: #0891b2; color: white; }
+  .b-E4   { background: #d97706; color: white; }
+  .b-E8   { background: #6b7280; color: white; }
+  .b-ror  { background: #dc2626; color: white; }
+
+  .combo-note { font-size: 11px; color: #7a4100; font-style: italic; margin-top: 3px; }
+  .ci-note    { font-size: 10px; color: #888; margin-top: 2px; }
+
+  /* Combos panel */
+  .combos-section { margin: 0 24px 24px; }
+  .combos-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: #1d3557; }
+  .combo-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+  .combo-card { background: white; border: 2px solid #ca8a04; border-radius: 10px; padding: 14px 18px; min-width: 240px; box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: opacity .3s; cursor: pointer; }
+  .combo-card:hover { box-shadow: 0 3px 8px rgba(0,0,0,.15); }
+  .combo-card.combo-taken { opacity: .4; border-color: #9ca3af; }
+  .combo-card h3 { font-size: 13px; color: #7a4100; margin-bottom: 8px; }
+  .combo-card .total { font-size: 20px; font-weight: 800; color: #1d3557; margin: 6px 0; }
+  .combo-card.combo-taken .total { color: #9ca3af; text-decoration: line-through; }
+  .combo-card ul { font-size: 11px; color: #444; padding-left: 14px; }
+  .combo-card li { margin: 2px 0; }
+  .combo-card .note { font-size: 10px; color: #888; margin-top: 6px; font-style: italic; }
+
+  .legend { display: flex; gap: 16px; padding: 10px 24px; font-size: 11px; flex-wrap: wrap; background: white; border-top: 1px solid #e0e0e0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 20px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.1); }
+
+  /* Session mode banner */
+  .session-banner { display: none; background: #dc2626; color: white; text-align: center; padding: 8px; font-size: 13px; font-weight: 700; letter-spacing: .5px; }
+  .session-banner.visible { display: block; }
+
+  @media print {
+    .controls, .stats-bar, header .session-toggle, .drag-hint { display: none; }
+    table { font-size: 10px; }
+    .drag-handle { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Sofia Gonzalez-Herrero — LBPSB Priority Pool 2026–27</h1>
+    <p>Categories: 3403 English Generalist (main) · 3402 Kindergarten (hidden) · Priority: 02-118 · Qualifié français: NON</p>
+  </div>
+  <div class="session-toggle" id="sessionToggle" onclick="toggleSession()">
+    <div class="dot"></div>
+    <span id="sessionLabel">Selection Day Mode: OFF</span>
+  </div>
+</header>
+
+<div class="session-banner" id="sessionBanner">
+  🔴 SELECTION DAY LIVE — Click "TAKEN" as posts get claimed. Rankings update in real time.
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat"><div class="n" id="s-total">46</div><div class="l">Total posts</div></div>
+  <div class="stat"><div class="n" id="s-avail">46</div><div class="l">Still available</div></div>
+  <div class="stat"><div class="n" id="s-ge50">30</div><div class="l">Available ≥50%</div></div>
+  <div class="stat"><div class="n" id="s-e2">8</div><div class="l">E2 Real available</div></div>
+  <div class="stat"><div class="n" id="s-taken">0</div><div class="l">Taken so far</div></div>
+  <div class="stat"><div class="n" id="s-showing">46</div><div class="l">Showing</div></div>
+</div>
+
+<div class="rules-banner">
+  <strong>Key rules:</strong>
+  &nbsp;⚠️ <strong>Right of Refusal</strong> — if a post ≥50% in your category is available at your turn, you must pick it or formally refuse. &nbsp;|&nbsp;
+  🔗 <strong>Combinations</strong> — the largest single post must be in 3402 or 3403. Need 100 days experience for E8 combos (you have ~318 days ✓). &nbsp;|&nbsp;
+  🌟 <strong>E2 contracts</strong> lead to tenure — prioritize these above all others.
+</div>
+
+<div class="drag-hint">
+  ⠿ &nbsp;<strong>Drag rows to set your preference order.</strong> The rank number updates live. Filters narrow what you see but don't lose your ordering. Use "Reset to default order" to start over.
+</div>
+
+<div class="controls">
+  <div class="filter-group">
+    <label>Category</label>
+    <select id="f-cat" onchange="applyFilters()">
+      <option value="">All</option>
+      <option value="3402">3402 Kindergarten</option>
+      <option value="3403">3403 English Generalist</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Contract Type</label>
+    <select id="f-type" onchange="applyFilters()">
+      <option value="">All</option>
+      <option value="E2">E2 Real Year-Round</option>
+      <option value="E3">E3 Partial Real</option>
+      <option value="E4">E4 Partial &lt;34%</option>
+      <option value="E8">E8 Replacement</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>School Start</label>
+    <select id="f-start" onchange="applyFilters()">
+      <option value="">All</option>
+      <option value="Early Start">Early Start</option>
+      <option value="Late Start">Late Start</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Min %</label>
+    <select id="f-pct" onchange="applyFilters()">
+      <option value="0">Any</option>
+      <option value="50">≥ 50%</option>
+      <option value="79">≥ 79%</option>
+      <option value="100">100% only</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Combos only</label>
+    <select id="f-combo" onchange="applyFilters()">
+      <option value="">All</option>
+      <option value="yes">Has valid combo</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Status</label>
+    <select id="f-status" onchange="applyFilters()">
+      <option value="available">Available only</option>
+      <option value="">All (inc. taken)</option>
+      <option value="taken">Taken only</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>School</label>
+    <input type="text" id="f-school" placeholder="search school..." oninput="applyFilters()" style="width:150px">
+  </div>
+  <div style="display:flex; gap:6px; flex-wrap:wrap; align-self:flex-end">
+    <button class="btn btn-reset" onclick="resetFilters()">Clear filters</button>
+    <button class="btn btn-secondary" onclick="resetOrder()">Reset to default order</button>
+    <button class="btn btn-danger" onclick="resetTaken()" id="resetTakenBtn" style="display:none">Reset all taken</button>
+    <button class="btn btn-primary" onclick="exportPreferences()">Export preference list</button>
+  </div>
+</div>
+
+<div class="table-wrap">
+<table id="jobTable">
+<thead>
+  <tr>
+    <th style="width:32px"></th>
+    <th style="width:40px" title="Preference rank among all available posts">Rank</th>
+    <th id="th-taken" style="display:none; width:90px">Status</th>
+    <th>Code</th>
+    <th>Cat</th>
+    <th>Type</th>
+    <th>Pct</th>
+    <th>School</th>
+    <th>Location</th>
+    <th>Start</th>
+    <th>Grade/Cycle</th>
+    <th>Description / Combo</th>
+    <th>⚠️ ROR</th>
+    <th>Dates</th>
+  </tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+</div>
+
+<div class="combos-section">
+  <h2>🔗 Valid Combination Opportunities</h2>
+  <div class="combo-cards" id="comboCards"></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#dbeafe"></div> 3402 Kindergarten</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#dcfce7"></div> 3403 English Generalist</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#fef9c3"></div> Valid combination available</div>
+  <div class="legend-item"><div class="badge b-E2">E2</div> Real year-round (best)</div>
+  <div class="legend-item"><div class="badge b-E3">E3</div> Partial real</div>
+  <div class="legend-item"><div class="badge b-E4">E4</div> Partial &lt;34%</div>
+  <div class="legend-item"><div class="badge b-E8">E8</div> Replacement</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e5e7eb; border:1px solid #9ca3af"></div> Taken / crossed out</div>
+</div>
+
+<script>
+const JOBS = [
+  {code:"10836",cat:"3402",pct:100,ctype:"E2",grade:"Kindergarten (K4)",school:"LaSalle Elementary Junior",location:"Lasalle",start_time:"Late Start",desc:"Real year-round. Post contains 3402/3405/3404/3403. Travel JR & SR.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"7680",cat:"3402",pct:100,ctype:"E2",grade:"Kindergarten",school:"Wilder Penfield",location:"DDO",start_time:"Late Start",desc:"Real year-round.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10843",cat:"3403",pct:100,ctype:"E2",grade:"Cycle 1-3",school:"Birchwood",location:"St-Lazare",start_time:"Late Start",desc:"Real year-round. French Plus.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10844",cat:"3403",pct:100,ctype:"E2",grade:"Cycle 1-3",school:"Christmas Park",location:"Beaconsfield",start_time:"Late Start",desc:"Real year-round. Bilingual.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"5942",cat:"3403",pct:100,ctype:"E2",grade:"Cycle 3",school:"Clearpoint",location:"Pointe-Claire",start_time:"Early Start",desc:"Real year-round.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10834",cat:"3403",pct:100,ctype:"E2",grade:"Cycle 1",school:"Clearpoint",location:"Pointe-Claire",start_time:"Early Start",desc:"Real year-round.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"6993",cat:"3403",pct:100,ctype:"E2",grade:"Cycle 1-3",school:"Maple Grove",location:"Lachine",start_time:"Early Start",desc:"Real year-round.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10837",cat:"3403",pct:100,ctype:"E2",grade:"Cycle 1-3",school:"Riverview",location:"Verdun",start_time:"",desc:"Real year-round. French Immersion. Post includes 3403, 3400.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10774",cat:"3402",pct:50,ctype:"E3",grade:"Kindergarten",school:"Evergreen",location:"St.Lazare",start_time:"Early Start",desc:"Partial real (50%). Bilingual.",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10757",cat:"3403",pct:79,ctype:"E3",grade:"Cycle 1-3",school:"Kingsdale Academy",location:"Pierrefonds",start_time:"Late Start",desc:"Partial real (79%). Art Gr1-6 + English Gr1. Bilingual.",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10778",cat:"3403",pct:60,ctype:"E3",grade:"Cycle 1-3",school:"Sherbrooke Academy Senior",location:"Beaconsfield",start_time:"Early Start",desc:"Partial real (60%). French Plus.",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"4412",cat:"3403",pct:60,ctype:"E3",grade:"Cycle 1-3",school:"Children's World Academy",location:"Lasalle",start_time:"Early Start",desc:"Partial real (60%). French Immersion.",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10765",cat:"3403",pct:55,ctype:"E3",grade:"Cycle 1-3",school:"Verdun",location:"Verdun",start_time:"Early Start",desc:"Partial real (55%). Bilingual.",s:"2026-08-25",e:"2027-06-30",cv:"6088 (3400 10%) + 10766 (3405 10%) + 10767 (3406 9%) = 84% total",ci:"",ror:true},
+  {code:"8615",cat:"3403",pct:50,ctype:"E3",grade:"Cycle 3",school:"Birchwood",location:"St-Lazare",start_time:"Late Start",desc:"Partial real (50%). French Plus.",s:"2026-08-25",e:"2027-06-30",cv:"6301 (3404, 20%) = 70% total",ci:"",ror:true},
+  {code:"10801",cat:"3403",pct:50,ctype:"E3",grade:"Cycle 3",school:"Pierre Elliott Trudeau",location:"Vaudreuil",start_time:"Late Start",desc:"Partial real (50%). French Immersion.",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"",ror:true},
+  {code:"10780",cat:"3403",pct:20,ctype:"E4",grade:"Cycle 1-3",school:"St. Charles",location:"Pierrefonds",start_time:"Late Start",desc:"Partial real <34% (20%). French Plus.",s:"2026-08-25",e:"2027-06-30",cv:"7337 (3402 K4, 10%) = 30% total",ci:"",ror:false},
+  {code:"10831",cat:"3403",pct:20,ctype:"E4",grade:"Cycle 1-3",school:"Springdale",location:"DDO",start_time:"Late Start",desc:"Partial real <34% (20%).",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"Combo with 1620 (3404) - verify % first",ror:false},
+  {code:"10770",cat:"3403",pct:11,ctype:"E4",grade:"Cycle 1",school:"Dorset",location:"Baie-D'Urfe",start_time:"Late Start",desc:"Partial real <34% (11%). French Immersion.",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"Combo 10347 (3404), 10771 (3405) - verify %",ror:false},
+  {code:"10761",cat:"3403",pct:10,ctype:"E4",grade:"Cycle 1-3",school:"St. John Fisher Senior",location:"Pointe-Claire",start_time:"Late Start",desc:"Partial real <34% (10%).",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"Combo with 10760 (3400) - verify %",ror:false},
+  {code:"7814",cat:"3403",pct:15,ctype:"E4",grade:"Cycle 1-3",school:"Soulanges",location:"Saint Telesphore",start_time:"",desc:"Partial real <34% (15%). Bilingual rural.",s:"2026-08-25",e:"2027-06-30",cv:"",ci:"Combo with 8576 (3405), 10779 (3438) - verify %",ror:false},
+  {code:"7267",cat:"3402",pct:100,ctype:"E8",grade:"Kindergarten K4",school:"Allion",location:"Lasalle",start_time:"Early Start",desc:"Replacement 100%. Bilingual.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"6374",cat:"3402",pct:100,ctype:"E8",grade:"Kindergarten K4",school:"LaSalle Elementary Junior",location:"Lasalle",start_time:"Late Start",desc:"Replacement 100%. Bilingual.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"10730",cat:"3402",pct:100,ctype:"E8",grade:"Kindergarten K4",school:"LaSalle Elementary Junior",location:"Lasalle",start_time:"Late Start",desc:"Replacement 100%. Bilingual. Team teaching.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"6842",cat:"3402",pct:100,ctype:"E8",grade:"Kindergarten",school:"Maple Grove",location:"Lachine",start_time:"Early Start",desc:"Replacement 100%.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"8518",cat:"3402",pct:100,ctype:"E8",grade:"Kindergarten",school:"St. Edmund",location:"Beaconsfield",start_time:"Early Start",desc:"Replacement 100%.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"1337",cat:"3403",pct:100,ctype:"E8",grade:"Cycle 3",school:"Allion",location:"Lasalle",start_time:"Early Start",desc:"Replacement 100%. Bilingual.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"1259",cat:"3403",pct:80,ctype:"E8",grade:"Cycle 3",school:"Birchwood",location:"St-Lazare",start_time:"Late Start",desc:"Replacement (80%). French Plus.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"5582",cat:"3403",pct:100,ctype:"E8",grade:"Cycle 1-3",school:"Dorset",location:"Baie-D'Urfe",start_time:"Late Start",desc:"Replacement 100%.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"4897",cat:"3403",pct:100,ctype:"E8",grade:"Cycle 1-3",school:"Springdale",location:"DDO",start_time:"Late Start",desc:"Replacement 100%.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"8078",cat:"3403",pct:100,ctype:"E8",grade:"Cycle 1",school:"St. Patrick",location:"Pincourt",start_time:"Early Start",desc:"Replacement 100%. Bilingual.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"10848",cat:"3403",pct:100,ctype:"E8",grade:"Cycle 1-3",school:"St. Patrick",location:"Pincourt",start_time:"Early Start",desc:"Replacement 100%. Bilingual. Post includes 3403/3402/3400.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"1354",cat:"3403",pct:100,ctype:"E8",grade:"Cycle 3",school:"Wilder Penfield",location:"DDO",start_time:"Late Start",desc:"Replacement 100%. French Immersion.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:true},
+  {code:"6754",cat:"3402",pct:60,ctype:"E8",grade:"Kindergarten K4",school:"St. John Fisher Junior",location:"Pointe-Claire",start_time:"Late Start",desc:"Replacement (60%). French Immersion.",s:"2026-08-25",e:"Open",cv:"5652 (3404, 20%) = 80% total",ci:"",ror:true},
+  {code:"1404",cat:"3403",pct:50,ctype:"E8",grade:"Cycle 2-3",school:"Allion",location:"Lasalle",start_time:"Early Start",desc:"Replacement (50%). Bilingual. English half of bilingual post.",s:"2026-08-25",e:"Open",cv:"1404-French (3404, 50%) = 100% total",ci:"",ror:true},
+  {code:"3473",cat:"3403",pct:50,ctype:"E8",grade:"Cycle 1-3",school:"Clearpoint",location:"Pointe-Claire",start_time:"Early Start",desc:"Replacement (50%). English half of bilingual post.",s:"2026-08-25",e:"Open",cv:"3473-French (3404, 50%) = 100% total",ci:"",ror:true},
+  {code:"7334",cat:"3402",pct:40,ctype:"E8",grade:"Kindergarten K5",school:"Beechwood",location:"Pierrefonds",start_time:"Early Start",desc:"Replacement (40%). French Plus.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:false},
+  {code:"1357",cat:"3403",pct:39,ctype:"E8",grade:"Cycle 1-3",school:"Beechwood",location:"Pierrefonds",start_time:"Early Start",desc:"Replacement (39%). French Plus.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:false},
+  {code:"7263",cat:"3402",pct:20,ctype:"E8",grade:"Kindergarten K4",school:"Beacon Hill",location:"Beaconsfield",start_time:"",desc:"Replacement (20%). French Immersion.",s:"2026-08-25",e:"Open",cv:"1238 (3403 5%) + 10792 (3406 8%) = 33% total [exclude 1722]",ci:"",ror:false},
+  {code:"6455",cat:"3402",pct:20,ctype:"E8",grade:"Kindergarten K5",school:"Clearpoint",location:"Pointe-Claire",start_time:"Early Start",desc:"Replacement (20%). Bilingual.",s:"2026-08-25",e:"Open",cv:"",ci:"10799 (3406) is 60% — combo invalid",ror:false},
+  {code:"5565",cat:"3403",pct:20,ctype:"E8",grade:"Cycle 1",school:"Christmas Park",location:"Beaconsfield",start_time:"Late Start",desc:"Replacement (20%). Bilingual.",s:"2026-08-25",e:"Open",cv:"",ci:"1369 (3404) is 50% — combo invalid",ror:false},
+  {code:"4443",cat:"3403",pct:20,ctype:"E8",grade:"Cycle 1-3",school:"St. Patrick",location:"Pincourt",start_time:"Early Start",desc:"Replacement (20%).",s:"2026-08-25",e:"Open",cv:"",ci:"10858 (3405) — verify % before combining",ror:false},
+  {code:"1231",cat:"3403",pct:20,ctype:"E8",grade:"Cycle 3",school:"Westpark",location:"DDO",start_time:"Early Start",desc:"Replacement (20%). French Immersion.",s:"2026-08-25",e:"Open",cv:"",ci:"405 (3432) — verify % before combining",ror:false},
+  {code:"7337",cat:"3402",pct:10,ctype:"E8",grade:"Kindergarten K4",school:"St. Charles",location:"Pierrefonds",start_time:"Late Start",desc:"Replacement (10%). Bilingual.",s:"2026-08-25",e:"Open",cv:"10780 (3403, 20%) = 30% total [exclude 7819]",ci:"",ror:false},
+  {code:"1346",cat:"3403",pct:10,ctype:"E8",grade:"Cycle 3",school:"Dorval",location:"Dorval",start_time:"Late Start",desc:"Replacement (10%). French Immersion.",s:"2026-08-25",e:"Open",cv:"",ci:"Combos 1495/1397(3404), 7640(3438) — verify %",ror:false},
+  {code:"8521",cat:"3403",pct:10,ctype:"E8",grade:"Cycle 2",school:"Terry Fox",location:"Pierrefonds",start_time:"Late Start",desc:"Replacement (10%). French Plus.",s:"2026-08-25",e:"Open",cv:"",ci:"",ror:false},
+  {code:"1238",cat:"3403",pct:5,ctype:"E8",grade:"Cycle 1-3",school:"Beacon Hill",location:"Beaconsfield",start_time:"",desc:"Replacement (5%). French Immersion. Combo partner to 7263 (3402 20%).",s:"2026-08-25",e:"Open",cv:"Partner: 7263 (3402 20%) is majority",ci:"",ror:false},
+];
+
+const COMBOS = [
+  {title:"Verdun — Real Partial 55%", anchor:"10765", total:84, type:"E3", parts:[{code:"10765",cat:"3403",pct:55,label:"3403 English Generalist (majority ✓)"},{code:"6088",cat:"3400",pct:10,label:"3400 English"},{code:"10766",cat:"3405",pct:10,label:"3405 Phys Ed"},{code:"10767",cat:"3406",pct:9,label:"3406 Art"}], note:"Best combo — 84% real partial. Claim 10765 + 6088 + 10766 + 10767."},
+  {title:"St. John Fisher Jr — Replacement 60%", anchor:"6754", total:80, type:"E8", parts:[{code:"6754",cat:"3402",pct:60,label:"3402 Kindergarten K4 (majority ✓)"},{code:"5652",cat:"3404",pct:20,label:"3404 French"}], note:"80% replacement. Claim 6754 + 5652. Need 100 days experience (✓)."},
+  {title:"Allion — English half 50%", anchor:"1404", total:100, type:"E8", parts:[{code:"1404",cat:"3403",pct:50,label:"3403 English Gr 5&6 (majority ✓)"},{code:"1404-fr",cat:"3404",pct:50,label:"3404 French Gr 5&6"}], note:"Combined = 100% replacement at Allion."},
+  {title:"Clearpoint — English half 50%", anchor:"3473", total:100, type:"E8", parts:[{code:"3473",cat:"3403",pct:50,label:"3403 English half (majority ✓)"},{code:"3473-fr",cat:"3404",pct:50,label:"3404 French half"}], note:"Combined = 100% replacement at Clearpoint."},
+  {title:"Birchwood — Real Partial 50% + French 20%", anchor:"8615", total:70, type:"E3", parts:[{code:"8615",cat:"3403",pct:50,label:"3403 English Generalist Cycle 3 (majority ✓)"},{code:"6301",cat:"3404",pct:20,label:"3404 French"}], note:"70% real partial at Birchwood (French Plus)."},
+  {title:"Beacon Hill — Replacement combo 33%", anchor:"7263", total:33, type:"E8", parts:[{code:"7263",cat:"3402",pct:20,label:"3402 Kindergarten K4 (majority ✓)"},{code:"1238",cat:"3403",pct:5,label:"3403 English 5%"},{code:"10792",cat:"3406",pct:8,label:"3406 Art 8%"}], note:"DO NOT include 1722 (3405 22%) — would flip majority."},
+  {title:"St. Charles — 30% combo (E4 + E8)", anchor:"10780", total:30, type:"E4+E8", parts:[{code:"10780",cat:"3403",pct:20,label:"3403 English Generalist (majority ✓)"},{code:"7337",cat:"3402",pct:10,label:"3402 Kindergarten K4"}], note:"DO NOT include 7819 (3405 30%) — would flip majority."},
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const JOBMAP = Object.fromEntries(JOBS.map(j => [j.code, j]));
+let displayOrder = [];   // master ordered list of codes (the preference ranking)
+let taken        = {};   // {code: true}
+let sessionMode  = false;
+let dragSrc      = null; // code being dragged
+
+// Default order: E2 > E3 > E4 > E8, within each by pct desc
+const DEFAULT_TYPE_ORDER = {E2:0, E3:1, E4:2, E8:3};
+function defaultSort(a, b) {
+  const td = DEFAULT_TYPE_ORDER[a.ctype] - DEFAULT_TYPE_ORDER[b.ctype];
+  return td !== 0 ? td : b.pct - a.pct;
+}
+
+// ── LOCALSTORAGE ──────────────────────────────────────────────────────────────
+const LS_ORDER = 'sofia2026_order';
+const LS_TAKEN = 'sofia2026_taken';
+
+function saveState() {
+  try {
+    localStorage.setItem(LS_ORDER, JSON.stringify(displayOrder));
+    localStorage.setItem(LS_TAKEN, JSON.stringify(taken));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const savedOrder = localStorage.getItem(LS_ORDER);
+    const savedTaken = localStorage.getItem(LS_TAKEN);
+    const validCodes = new Set(JOBS.map(j => j.code));
+    if (savedOrder) {
+      const parsed = JSON.parse(savedOrder);
+      // Keep saved codes that still exist (preserves her ordering)
+      const preserved    = parsed.filter(c => validCodes.has(c));
+      const preservedSet = new Set(preserved);
+      // Any new jobs not in the saved order go to the bottom, default-sorted
+      const newJobs = JOBS.filter(j => !preservedSet.has(j.code))
+                          .sort(defaultSort)
+                          .map(j => j.code);
+      displayOrder = [...preserved, ...newJobs];
+    } else {
+      initOrderDefault();
+    }
+    if (savedTaken) taken = JSON.parse(savedTaken);
+  } catch(e) {
+    initOrderDefault();
+  }
+}
+
+function initOrderDefault() {
+  displayOrder = [...JOBS].sort(defaultSort).map(j => j.code);
+}
+
+function initOrder() {
+  loadState();
+}
+
+function resetOrder() {
+  initOrderDefault();
+  saveState();
+  applyFilters();
+}
+
+// ── RANK HELPERS ──────────────────────────────────────────────────────────────
+// Rank = 1-based position among non-taken items in displayOrder
+function buildRankMap() {
+  const ranks = {};
+  let r = 1;
+  for (const code of displayOrder) {
+    if (!taken[code]) ranks[code] = r++;
+    else              ranks[code] = null; // taken
+  }
+  return ranks;
+}
+
+// ── SESSION MODE ──────────────────────────────────────────────────────────────
+function toggleSession() {
+  sessionMode = !sessionMode;
+  document.getElementById('sessionToggle').classList.toggle('active', sessionMode);
+  document.getElementById('sessionLabel').textContent = 'Selection Day Mode: ' + (sessionMode ? 'ON' : 'OFF');
+  document.getElementById('sessionBanner').classList.toggle('visible', sessionMode);
+  document.getElementById('th-taken').style.display = sessionMode ? '' : 'none';
+  document.getElementById('resetTakenBtn').style.display = sessionMode ? '' : 'none';
+  if (sessionMode) document.getElementById('f-status').value = 'available';
+  applyFilters();
+}
+
+function markTaken(code) {
+  if (taken[code]) delete taken[code];
+  else             taken[code] = true;
+  saveState();
+  applyFilters();
+  updateCombos();
+}
+
+function resetTaken() {
+  if (!confirm('Reset all taken marks?')) return;
+  taken = {};
+  saveState();
+  applyFilters();
+  updateCombos();
+}
+
+// ── FILTERS ───────────────────────────────────────────────────────────────────
+function getFiltered() {
+  const cat    = document.getElementById('f-cat').value;
+  const type   = document.getElementById('f-type').value;
+  const start  = document.getElementById('f-start').value;
+  const pct    = parseInt(document.getElementById('f-pct').value) || 0;
+  const combo  = document.getElementById('f-combo').value;
+  const status = document.getElementById('f-status').value;
+  const school = document.getElementById('f-school').value.toLowerCase();
+
+  return displayOrder.map(c => JOBMAP[c]).filter(j => {
+    if (!j) return false;
+    if (cat    && j.cat !== cat) return false;
+    if (type   && j.ctype !== type) return false;
+    if (start  && j.start_time !== start) return false;
+    if (j.pct  < pct) return false;
+    if (combo === 'yes' && !j.cv) return false;
+    if (status === 'available' && taken[j.code]) return false;
+    if (status === 'taken'     && !taken[j.code]) return false;
+    if (school && !j.school.toLowerCase().includes(school)) return false;
+    return true;
+  });
+}
+
+function resetFilters() {
+  ['f-cat','f-type','f-start','f-combo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-pct').value = '0';
+  document.getElementById('f-status').value = 'available';
+  document.getElementById('f-school').value = '';
+  applyFilters();
+}
+
+// ── DRAG & DROP ───────────────────────────────────────────────────────────────
+function onDragStart(e, code) {
+  if (taken[code]) { e.preventDefault(); return; }
+  dragSrc = code;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => {
+    const el = document.getElementById('row-' + code);
+    if (el) el.classList.add('dragging');
+  }, 0);
+}
+
+function onDragEnd(e, code) {
+  dragSrc = null;
+  document.querySelectorAll('.dragging,.drag-over-top,.drag-over-bottom').forEach(el => {
+    el.classList.remove('dragging','drag-over-top','drag-over-bottom');
+  });
+}
+
+function onDragOver(e, code) {
+  e.preventDefault();
+  if (!dragSrc || dragSrc === code || taken[code]) return;
+  e.dataTransfer.dropEffect = 'move';
+
+  // Determine if we're in the top or bottom half of the target row
+  const tr  = document.getElementById('row-' + code);
+  if (!tr) return;
+  const rect = tr.getBoundingClientRect();
+  const mid  = rect.top + rect.height / 2;
+  document.querySelectorAll('.drag-over-top,.drag-over-bottom').forEach(el => {
+    el.classList.remove('drag-over-top','drag-over-bottom');
+  });
+  tr.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+}
+
+function onDragLeave(e, code) {
+  const tr = document.getElementById('row-' + code);
+  if (tr) { tr.classList.remove('drag-over-top','drag-over-bottom'); }
+}
+
+function onDrop(e, targetCode) {
+  e.preventDefault();
+  if (!dragSrc || dragSrc === targetCode) return;
+
+  const tr   = document.getElementById('row-' + targetCode);
+  const rect = tr ? tr.getBoundingClientRect() : null;
+  const insertBefore = rect ? (e.clientY < rect.top + rect.height / 2) : true;
+
+  // Move dragSrc in displayOrder relative to targetCode
+  const fromIdx = displayOrder.indexOf(dragSrc);
+  displayOrder.splice(fromIdx, 1);
+  let toIdx = displayOrder.indexOf(targetCode);
+  if (!insertBefore) toIdx++;
+  displayOrder.splice(toIdx, 0, dragSrc);
+
+  dragSrc = null;
+  document.querySelectorAll('.dragging,.drag-over-top,.drag-over-bottom').forEach(el => {
+    el.classList.remove('dragging','drag-over-top','drag-over-bottom');
+  });
+  saveState();
+  applyFilters();
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────────────
+function updateStats(filtered) {
+  const takenCount = Object.keys(taken).length;
+  const avail = JOBS.filter(j => !taken[j.code]);
+  document.getElementById('s-total').textContent = JOBS.length;
+  document.getElementById('s-avail').textContent = avail.length;
+  document.getElementById('s-ge50').textContent  = avail.filter(j => j.pct >= 50).length;
+  document.getElementById('s-e2').textContent    = avail.filter(j => j.ctype === 'E2').length;
+  document.getElementById('s-taken').textContent = takenCount;
+  document.getElementById('s-showing').textContent = filtered.length;
+  document.getElementById('s-ge50').parentElement.classList.toggle('alert',
+    avail.filter(j => j.pct >= 50).length <= 5);
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render(filtered) {
+  const tbody   = document.getElementById('tableBody');
+  const ranks   = buildRankMap();
+  const isFiltering = filtered.length < displayOrder.filter(c => !taken[c]).length
+    || document.getElementById('f-status').value === 'taken';
+
+  tbody.innerHTML = '';
+  filtered.forEach(j => {
+    const isTaken = !!taken[j.code];
+    const baseClass = j.cv ? 'row-combo' : (j.cat === '3402' ? 'row-3402' : 'row-3403');
+    const tr = document.createElement('tr');
+    tr.id        = 'row-' + j.code;
+    tr.className = baseClass + (isTaken ? ' row-taken' : ' draggable-row');
+    if (!isTaken) {
+      tr.draggable = true;
+      tr.addEventListener('dragstart',  e => onDragStart(e, j.code));
+      tr.addEventListener('dragend',    e => onDragEnd(e, j.code));
+      tr.addEventListener('dragover',   e => onDragOver(e, j.code));
+      tr.addEventListener('dragleave',  e => onDragLeave(e, j.code));
+      tr.addEventListener('drop',       e => onDrop(e, j.code));
+    }
+
+    // Rank display
+    let rankHtml;
+    if (isTaken) {
+      rankHtml = '<span class="rank-num rank-taken">✕</span>';
+    } else if (isFiltering) {
+      rankHtml = `<span class="rank-num rank-filtered" title="Overall rank: ${ranks[j.code]}">${ranks[j.code]}</span>`;
+    } else {
+      rankHtml = `<span class="rank-num">${ranks[j.code]}</span>`;
+    }
+
+    const takenCol = sessionMode
+      ? `<td><button class="taken-btn ${isTaken ? 'unmark' : 'mark'}" onclick="markTaken('${j.code}')">${isTaken ? '↩ Restore' : '✕ Taken'}</button></td>`
+      : '';
+
+    const handleHtml = isTaken
+      ? '<span class="drag-handle" style="cursor:default">·</span>'
+      : '<span class="drag-handle" title="Drag to reorder">⠿</span>';
+
+    tr.innerHTML = `
+      <td style="text-align:center;padding:6px 4px">${handleHtml}</td>
+      <td style="text-align:center;padding:4px">${rankHtml}</td>
+      ${takenCol}
+      <td><strong>${j.code}</strong></td>
+      <td><span class="badge b-${j.cat}">${j.cat}</span></td>
+      <td><span class="badge b-${j.ctype}">${j.ctype}</span></td>
+      <td style="font-weight:700;color:${j.pct>=100?'#7c3aed':j.pct>=50?'#065f46':'#374151'}">${j.pct}%</td>
+      <td><strong>${j.school}</strong></td>
+      <td style="color:#555">${j.location}</td>
+      <td><span style="font-size:10px;color:${j.start_time==='Early Start'?'#0369a1':'#374151'}">${j.start_time||'—'}</span></td>
+      <td style="color:#555;font-size:11px">${j.grade}</td>
+      <td>
+        <span style="font-size:11px">${j.desc}</span>
+        ${j.cv ? `<div class="combo-note">🔗 COMBO: ${j.cv}</div>` : ''}
+        ${j.ci ? `<div class="ci-note">⚠️ ${j.ci}</div>` : ''}
+      </td>
+      <td style="text-align:center">${j.ror ? '<span class="badge b-ror">YES</span>' : ''}</td>
+      <td style="font-size:10px;color:#555;white-space:nowrap">${j.s}<br>to ${j.e}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── MAIN CYCLE ────────────────────────────────────────────────────────────────
+function applyFilters() {
+  const filtered = getFiltered();
+  updateStats(filtered);
+  render(filtered);
+}
+
+// ── COMBOS PANEL ──────────────────────────────────────────────────────────────
+function updateCombos() {
+  COMBOS.forEach(c => {
+    const card = document.getElementById('combo-' + c.anchor);
+    if (card) card.classList.toggle('combo-taken', !!taken[c.anchor]);
+  });
+}
+
+function buildCombos() {
+  const container = document.getElementById('comboCards');
+  COMBOS.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'combo-card';
+    div.id = 'combo-' + c.anchor;
+    div.innerHTML = `
+      <h3>${c.title}</h3>
+      <div class="total">${c.total}% <span style="font-size:12px;font-weight:400;color:#555">${c.type}</span></div>
+      <ul>${c.parts.map(p=>`<li><strong>${p.code}</strong> (${p.cat} ${p.pct}%) — ${p.label}</li>`).join('')}</ul>
+      <div class="note">${c.note}</div>
+    `;
+    div.onclick = () => {
+      // Jump to anchor row
+      resetFilters();
+      setTimeout(() => {
+        const row = document.getElementById('row-' + c.anchor);
+        if (row) {
+          row.scrollIntoView({behavior:'smooth', block:'center'});
+          row.style.outline = '3px solid #7c3aed';
+          setTimeout(() => row.style.outline = '', 2000);
+        }
+      }, 50);
+    };
+    container.appendChild(div);
+  });
+}
+
+// ── EXPORT ────────────────────────────────────────────────────────────────────
+function exportPreferences() {
+  const ranks = buildRankMap();
+  const ordered = displayOrder
+    .map(c => JOBMAP[c])
+    .filter(j => j && !taken[j.code]);
+
+  let txt = 'SOFIA — PRIORITY POOL PREFERENCES 2026-27\n==========================================\n\n';
+  ordered.forEach((j, i) => {
+    txt += `${i+1}. [${j.ctype} ${j.pct}%] ${j.school} — Code ${j.code}\n`;
+    txt += `   Category: ${j.cat} | Grade: ${j.grade} | Location: ${j.location}\n`;
+    if (j.cv) txt += `   COMBO: ${j.cv}\n`;
+    txt += `   Dates: ${j.s} to ${j.e}\n\n`;
+  });
+
+  const takenList = JOBS.filter(j => taken[j.code]);
+  if (takenList.length) {
+    txt += '\n--- TAKEN / UNAVAILABLE ---\n';
+    takenList.forEach(j => txt += `  ✕ [${j.ctype} ${j.pct}%] ${j.school} — Code ${j.code}\n`);
+  }
+
+  const blob = new Blob([txt], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Sofia_Preferences_2026.txt';
+  a.click();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+initOrder();
+buildCombos();
+applyFilters();
+</script>
+</body>
+</html>
