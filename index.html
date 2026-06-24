@@ -44,6 +44,12 @@
   thead th { background: #1d3557; color: white; padding: 9px 10px; font-size: 11px; text-align: left; white-space: nowrap; user-select: none; }
   tbody tr { border-bottom: 1px solid #c8c8c8; transition: opacity .2s, background .15s; }
   tbody tr.row-stripe { background-image: linear-gradient(rgba(0,0,0,.04), rgba(0,0,0,.04)); }
+  tbody td { padding: 8px 12px; }
+  thead th.col-draggable { cursor: grab; }
+  thead th.col-draggable:active { cursor: grabbing; }
+  thead th.col-drag-over-left  { border-left:  3px solid #e63946 !important; }
+  thead th.col-drag-over-right { border-right: 3px solid #e63946 !important; }
+  thead th.col-dragging { opacity: .4; }
   tbody tr.draggable-row { cursor: grab; }
   tbody tr.draggable-row:active { cursor: grabbing; }
   tbody tr.dragging { opacity: .35; }
@@ -148,7 +154,7 @@
 </div>
 
 <div class="drag-hint">
-  ⠿ &nbsp;<strong>Drag rows to set your preference order.</strong> The rank number updates live. Filters narrow what you see but don't lose your ordering. Use "Reset to default order" to start over.
+  ⠿ &nbsp;<strong>Drag rows</strong> to set your preference order · <strong>Drag column headers</strong> to reorder columns. Both are saved automatically and persist on reload. Use the reset buttons to restore defaults.
 </div>
 
 <div class="controls">
@@ -209,6 +215,7 @@
   <div style="display:flex; gap:6px; flex-wrap:wrap; align-self:flex-end">
     <button class="btn btn-reset" onclick="resetFilters()">Clear filters</button>
     <button class="btn btn-secondary" onclick="resetOrder()">Reset to default order</button>
+    <button class="btn btn-reset" onclick="resetColOrder()">Reset column order</button>
     <button class="btn btn-danger" onclick="resetTaken()" id="resetTakenBtn" style="display:none">Reset all taken</button>
     <button class="btn btn-primary" onclick="exportPreferences()">Export preference list</button>
   </div>
@@ -217,22 +224,7 @@
 <div class="table-wrap">
 <table id="jobTable">
 <thead>
-  <tr>
-    <th style="width:32px"></th>
-    <th style="width:40px" title="Preference rank among all available posts">Rank</th>
-    <th id="th-taken" style="display:none; width:90px">Status</th>
-    <th>Code</th>
-    <th>Cat</th>
-    <th>Type</th>
-    <th>Pct</th>
-    <th>School</th>
-    <th>Location</th>
-    <th>Grade/Cycle</th>
-    <th>Description / Combo</th>
-    <th>⚠️ ROR</th>
-    <th>Dates</th>
-    <th>Start</th>
-  </tr>
+  <tr id="theadRow"></tr>
 </thead>
 <tbody id="tableBody"></tbody>
 </table>
@@ -333,6 +325,130 @@ function fmtCodes(text) {
   });
 }
 
+// ── COLUMNS ───────────────────────────────────────────────────────────────────
+const COLUMNS = [
+  { key: 'rank',     label: 'Rank',               width: '40px', title: 'Preference rank among all available posts' },
+  { key: 'status',   label: 'Status',             width: '90px', sessionOnly: true },
+  { key: 'code',     label: 'Code' },
+  { key: 'cat',      label: 'Cat' },
+  { key: 'ctype',    label: 'Type' },
+  { key: 'pct',      label: 'Pct' },
+  { key: 'school',   label: 'School' },
+  { key: 'location', label: 'Location' },
+  { key: 'grade',    label: 'Grade/Cycle' },
+  { key: 'desc',     label: 'Description / Combo' },
+  { key: 'ror',      label: '⚠️ ROR' },
+  { key: 'dates',    label: 'Dates' },
+  { key: 'start',    label: 'Start' },
+];
+const COL_MAP = Object.fromEntries(COLUMNS.map(c => [c.key, c]));
+const DEFAULT_COL_ORDER = COLUMNS.map(c => c.key);
+let colOrder = [...DEFAULT_COL_ORDER];
+let colDragSrc = null;
+
+function onColDragStart(e, key) {
+  colDragSrc = key;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => {
+    const th = document.querySelector(`[data-col="${key}"]`);
+    if (th) th.classList.add('col-dragging');
+  }, 0);
+}
+function onColDragEnd() {
+  colDragSrc = null;
+  document.querySelectorAll('.col-dragging,.col-drag-over-left,.col-drag-over-right').forEach(el =>
+    el.classList.remove('col-dragging','col-drag-over-left','col-drag-over-right'));
+}
+function onColDragOver(e, key) {
+  e.preventDefault();
+  if (!colDragSrc || colDragSrc === key) return;
+  e.dataTransfer.dropEffect = 'move';
+  const th = document.querySelector(`[data-col="${key}"]`);
+  if (!th) return;
+  const rect = th.getBoundingClientRect();
+  document.querySelectorAll('.col-drag-over-left,.col-drag-over-right').forEach(el =>
+    el.classList.remove('col-drag-over-left','col-drag-over-right'));
+  th.classList.add(e.clientX < rect.left + rect.width / 2 ? 'col-drag-over-left' : 'col-drag-over-right');
+}
+function onColDragLeave(e, key) {
+  const th = document.querySelector(`[data-col="${key}"]`);
+  if (th) th.classList.remove('col-drag-over-left','col-drag-over-right');
+}
+function onColDrop(e, targetKey) {
+  e.preventDefault();
+  if (!colDragSrc || colDragSrc === targetKey) return;
+  const th = document.querySelector(`[data-col="${targetKey}"]`);
+  const rect = th ? th.getBoundingClientRect() : null;
+  const insertBefore = rect ? e.clientX < rect.left + rect.width / 2 : true;
+  const fromIdx = colOrder.indexOf(colDragSrc);
+  colOrder.splice(fromIdx, 1);
+  let toIdx = colOrder.indexOf(targetKey);
+  if (!insertBefore) toIdx++;
+  colOrder.splice(toIdx, 0, colDragSrc);
+  colDragSrc = null;
+  document.querySelectorAll('.col-dragging,.col-drag-over-left,.col-drag-over-right').forEach(el =>
+    el.classList.remove('col-dragging','col-drag-over-left','col-drag-over-right'));
+  saveState();
+  renderThead();
+  applyFilters();
+}
+
+function renderThead() {
+  const tr = document.getElementById('theadRow');
+  let html = `<th style="width:32px"></th>`;
+  colOrder.forEach(key => {
+    const col = COL_MAP[key];
+    if (!col) return;
+    if (col.sessionOnly && !sessionMode) return;
+    const w = col.width ? ` style="width:${col.width}"` : '';
+    const t = col.title ? ` title="${col.title}"` : '';
+    html += `<th${w}${t} data-col="${key}" class="col-draggable" draggable="true">${col.label}</th>`;
+  });
+  tr.innerHTML = html;
+  tr.querySelectorAll('th[data-col]').forEach(th => {
+    const key = th.dataset.col;
+    th.addEventListener('dragstart', e => onColDragStart(e, key));
+    th.addEventListener('dragend',   () => onColDragEnd());
+    th.addEventListener('dragover',  e => onColDragOver(e, key));
+    th.addEventListener('dragleave', e => onColDragLeave(e, key));
+    th.addEventListener('drop',      e => onColDrop(e, key));
+  });
+}
+
+function renderCell(j, key, isTaken, rankHtml) {
+  switch (key) {
+    case 'rank':
+      return `<td style="text-align:center;padding:4px">${rankHtml}</td>`;
+    case 'status':
+      if (!sessionMode) return '';
+      return `<td><button class="taken-btn ${isTaken ? 'unmark' : 'mark'}" onclick="markTaken('${j.code}')">${isTaken ? '↩ Restore' : '✕ Taken'}</button></td>`;
+    case 'code':
+      return `<td><strong>${j.code}</strong></td>`;
+    case 'cat':
+      return `<td><span class="badge b-${j.cat}">${j.cat}</span></td>`;
+    case 'ctype':
+      return `<td><span class="badge b-${j.ctype}">${j.ctype}</span></td>`;
+    case 'pct':
+      return `<td style="font-weight:700;color:${j.pct>=100?'#7c3aed':j.pct>=50?'#065f46':'#374151'}">${j.pct}%</td>`;
+    case 'school':
+      return `<td><strong>${j.school}</strong></td>`;
+    case 'location':
+      return `<td style="color:#555">${j.location}</td>`;
+    case 'grade':
+      return `<td style="color:#555;font-size:11px">${j.grade}</td>`;
+    case 'desc':
+      return `<td><span style="font-size:11px">${j.desc}</span>${j.cv ? `<div class="combo-note">🔗 COMBO: ${fmtCodes(j.cv)}</div>` : ''}${j.ci ? `<div class="ci-note">⚠️ ${fmtCodes(j.ci)}</div>` : ''}</td>`;
+    case 'ror':
+      return `<td style="text-align:center">${j.ror ? '<span class="badge b-ror">YES</span>' : ''}</td>`;
+    case 'dates':
+      return `<td style="font-size:10px;color:#555;white-space:nowrap">${j.s}<br>to ${j.e}</td>`;
+    case 'start':
+      return `<td><span style="font-size:10px;color:${j.start_time==='Early Start'?'#0369a1':'#374151'}">${j.start_time||'—'}</span></td>`;
+    default:
+      return '';
+  }
+}
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
 const JOBMAP = Object.fromEntries(JOBS.map(j => [j.code, j]));
 let displayOrder = [];   // master ordered list of codes (the preference ranking)
@@ -350,11 +466,13 @@ function defaultSort(a, b) {
 // ── LOCALSTORAGE ──────────────────────────────────────────────────────────────
 const LS_ORDER = 'sofia2026_order';
 const LS_TAKEN = 'sofia2026_taken';
+const LS_COLS  = 'sofia2026_colorder';
 
 function saveState() {
   try {
     localStorage.setItem(LS_ORDER, JSON.stringify(displayOrder));
     localStorage.setItem(LS_TAKEN, JSON.stringify(taken));
+    localStorage.setItem(LS_COLS,  JSON.stringify(colOrder));
   } catch(e) {}
 }
 
@@ -362,6 +480,7 @@ function loadState() {
   try {
     const savedOrder = localStorage.getItem(LS_ORDER);
     const savedTaken = localStorage.getItem(LS_TAKEN);
+    const savedCols  = localStorage.getItem(LS_COLS);
     const validCodes = new Set(JOBS.map(j => j.code));
     if (savedOrder) {
       const parsed = JSON.parse(savedOrder);
@@ -377,9 +496,23 @@ function loadState() {
       initOrderDefault();
     }
     if (savedTaken) taken = JSON.parse(savedTaken);
+    if (savedCols) {
+      const validKeys = new Set(DEFAULT_COL_ORDER);
+      const parsed    = JSON.parse(savedCols).filter(k => validKeys.has(k));
+      const parsedSet = new Set(parsed);
+      const newCols   = DEFAULT_COL_ORDER.filter(k => !parsedSet.has(k));
+      colOrder = [...parsed, ...newCols];
+    }
   } catch(e) {
     initOrderDefault();
   }
+}
+
+function resetColOrder() {
+  colOrder = [...DEFAULT_COL_ORDER];
+  saveState();
+  renderThead();
+  applyFilters();
 }
 
 function initOrderDefault() {
@@ -414,9 +547,9 @@ function toggleSession() {
   document.getElementById('sessionToggle').classList.toggle('active', sessionMode);
   document.getElementById('sessionLabel').textContent = 'Selection Day Mode: ' + (sessionMode ? 'ON' : 'OFF');
   document.getElementById('sessionBanner').classList.toggle('visible', sessionMode);
-  document.getElementById('th-taken').style.display = sessionMode ? '' : 'none';
   document.getElementById('resetTakenBtn').style.display = sessionMode ? '' : 'none';
   if (sessionMode) document.getElementById('f-status').value = 'available';
+  renderThead();
   applyFilters();
 }
 
@@ -578,34 +711,13 @@ function render(filtered) {
       rankHtml = `<span class="rank-num">${ranks[j.code]}</span>`;
     }
 
-    const takenCol = sessionMode
-      ? `<td><button class="taken-btn ${isTaken ? 'unmark' : 'mark'}" onclick="markTaken('${j.code}')">${isTaken ? '↩ Restore' : '✕ Taken'}</button></td>`
-      : '';
-
     const handleHtml = isTaken
       ? '<span class="drag-handle" style="cursor:default">·</span>'
       : '<span class="drag-handle" title="Drag to reorder">⠿</span>';
 
-    tr.innerHTML = `
-      <td style="text-align:center;padding:6px 4px">${handleHtml}</td>
-      <td style="text-align:center;padding:4px">${rankHtml}</td>
-      ${takenCol}
-      <td><strong>${j.code}</strong></td>
-      <td><span class="badge b-${j.cat}">${j.cat}</span></td>
-      <td><span class="badge b-${j.ctype}">${j.ctype}</span></td>
-      <td style="font-weight:700;color:${j.pct>=100?'#7c3aed':j.pct>=50?'#065f46':'#374151'}">${j.pct}%</td>
-      <td><strong>${j.school}</strong></td>
-      <td style="color:#555">${j.location}</td>
-      <td style="color:#555;font-size:11px">${j.grade}</td>
-      <td>
-        <span style="font-size:11px">${j.desc}</span>
-        ${j.cv ? `<div class="combo-note">🔗 COMBO: ${fmtCodes(j.cv)}</div>` : ''}
-        ${j.ci ? `<div class="ci-note">⚠️ ${fmtCodes(j.ci)}</div>` : ''}
-      </td>
-      <td style="text-align:center">${j.ror ? '<span class="badge b-ror">YES</span>' : ''}</td>
-      <td style="font-size:10px;color:#555;white-space:nowrap">${j.s}<br>to ${j.e}</td>
-      <td><span style="font-size:10px;color:${j.start_time==='Early Start'?'#0369a1':'#374151'}">${j.start_time||'—'}</span></td>
-    `;
+    let cells = `<td style="text-align:center;padding:6px 4px">${handleHtml}</td>`;
+    colOrder.forEach(key => { cells += renderCell(j, key, isTaken, rankHtml); });
+    tr.innerHTML = cells;
     tbody.appendChild(tr);
   });
 }
@@ -683,6 +795,7 @@ function exportPreferences() {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 initOrder();
+renderThead();
 buildCombos();
 applyFilters();
 </script>
