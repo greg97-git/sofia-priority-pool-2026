@@ -132,6 +132,21 @@ When a new JOBLIST PDF is provided, here is how to identify eligible posts for S
 4. **Identify combos:** Look for posts at the same school where the 3402/3403 post is the largest piece. Check surrounding posts (often the French half of a bilingual post has the same code with a "-French" suffix or appears adjacent in the list).
 5. **Flag potential combos for verification:** If a combo looks possible but percentages need confirming, add a `ci` (combo investigate) note rather than asserting it as valid.
 
+### Field Extraction Rules
+
+**`grade` field:**
+- If the PDF shows "Other - Specify Under Description" → store `"See description"`
+- If the grade/cycle section is blank or missing → store `"Unknown"`
+- Otherwise → store verbatim as it appears in the PDF
+
+**`desc` field** — build as: `[Contract prefix]. [Program]. [Full verbatim PDF description paragraph].`
+- Contract prefix: `"Real year-round"` for E2, `"Partial real"` for E3/E4, `"Replacement"` for E8
+- Program: the language program keyword from the post (e.g. Bilingual, French Plus, French Immersion, Regular French, etc.)
+- Full paragraph: paste the complete description text verbatim from the PDF — do not summarize or paraphrase. Preserve typos exactly as they appear.
+- If the post has no description paragraph, use just the contract prefix and program.
+
+**All other fields** (`code`, `cat`, `pct`, `ctype`, `school`, `location`, `start_time`, `s`, `e`, `cv`, `ci`, `ror`) — extract verbatim. Do not infer or guess missing values.
+
 ### School Name Aliases
 The job list and school info sheets sometimes use slightly different names. Common ones encountered:
 - "St. Charles" ↔ "St-Charles"
@@ -187,13 +202,16 @@ On load, the app merges saved state with the current JOBS array: saved order is 
 ```
 
 ### Update Workflow (When New Job List Arrives)
-1. User uploads the new JOBLIST PDF to Claude
-2. Claude parses it using pdfplumber (Python) or text extraction
-3. Claude identifies all 3402/3403 posts, flags ROR, identifies combos
-4. Claude updates the `JOBS` array in `index.html` and the `COMBOS` array
-5. User saves the updated `index.html`, pushes to GitHub
+1. User shares the new JOBLIST PDF (and this context file) with Claude in a new session
+2. Claude reads the PDF in chunks — max 20 pages per Read call, so 3 reads for a 44-page file. Read all pages before writing any code.
+3. Claude extracts all 3402/3403 posts using the **Field Extraction Rules** above
+4. Claude performs a **surgical diff** against the current `JOBS` array using `code` as the unique key:
+   - **New codes** (in PDF but not in current JOBS) → append at the bottom
+   - **Removed codes** (in current JOBS but absent from new PDF) → delete the entry
+   - **Changed fields** (same code, different values) → update only those fields; never reassign `code`
+5. User pushes updated `index.html` to GitHub
 6. GitHub Pages redeploys in ~60 seconds
-7. Sofia's localStorage preference order is preserved; new jobs appear at the bottom
+7. Sofia's localStorage preference order is preserved; new jobs appear at the bottom of her list
 
 ---
 
