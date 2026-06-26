@@ -41,7 +41,9 @@
 
   .table-wrap { overflow-x: auto; padding: 0 24px 24px; }
   table { width: 100%; border-collapse: collapse; margin-top: 12px; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
-  thead th { background: #5c7fa7; color: white; padding: 9px 10px; font-size: 11px; text-align: left; white-space: nowrap; user-select: none; }
+  thead th { background: #5c7fa7; color: white; padding: 9px 10px; font-size: 11px; text-align: left; white-space: nowrap; user-select: none; position: sticky; top: 0; z-index: 10; }
+  .notes-input { width: 100%; min-width: 140px; box-sizing: border-box; font-size: 11px; padding: 4px 6px; border: 1.5px solid #d8d8d8; border-radius: 4px; resize: vertical; font-family: inherit; background: transparent; color: inherit; }
+  .notes-input:focus { outline: none; border-color: #9b7ec8; box-shadow: 0 0 0 2px rgba(155,126,200,.18); }
   tbody tr { border-bottom: 1px solid #c8c8c8; transition: opacity .2s, background .15s; }
   tbody tr.row-stripe { background-image: linear-gradient(rgba(0,0,0,.025), rgba(0,0,0,.025)); }
   tbody td { padding: 8px 12px; }
@@ -298,6 +300,7 @@ const TEACHER = {
   lsOrder:     'sofia2026_order',
   lsTaken:     'sofia2026_taken',
   lsCols:      'sofia2026_colorder',
+  lsNotes:     'sofia2026_notes',
   exportFile:  'Sofia_Preferences_2026.txt',
   exportHead:  'SOFIA — PRIORITY POOL PREFERENCES 2026-27\n==========================================\n\n',
   e2StatLabel: 'E2 Real available',
@@ -402,6 +405,7 @@ const COLUMNS = [
   { key: 'location', label: 'Location' },
   { key: 'grade',    label: 'Grade/Cycle' },
   { key: 'desc',     label: 'Description / Combo' },
+  { key: 'notes',    label: 'My Notes', width: '160px', title: 'Personal notes — auto-saved to this browser' },
   { key: 'ror',      label: '⚠️ ROR' },
   { key: 'dates',    label: 'Dates' },
   { key: 'start',    label: 'Start' },
@@ -509,6 +513,10 @@ function renderCell(j, key, isTaken, rankHtml) {
       return `<td style="font-size:10px;color:#555;white-space:nowrap">${j.s}<br>to ${j.e}</td>`;
     case 'start':
       return `<td><span style="font-size:10px;color:${j.start_time==='Early Start'?'#0369a1':'#374151'}">${j.start_time||'—'}</span></td>`;
+    case 'notes': {
+      const escaped = (notes[j.code]||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return `<td><textarea class="notes-input" rows="2" draggable="false" onblur="saveNote('${j.code}',this.value)" placeholder="Add notes…">${escaped}</textarea></td>`;
+    }
     default:
       return '';
   }
@@ -518,6 +526,7 @@ function renderCell(j, key, isTaken, rankHtml) {
 const JOBMAP = Object.fromEntries(JOBS.map(j => [j.code, j]));
 let displayOrder = [];   // master ordered list of codes (the preference ranking)
 let taken        = {};   // {code: true}
+let notes        = {};   // {code: "text"}
 let sessionMode  = false;
 let dragSrc      = null; // code being dragged
 
@@ -532,13 +541,21 @@ function defaultSort(a, b) {
 const LS_ORDER = TEACHER.lsOrder;
 const LS_TAKEN = TEACHER.lsTaken;
 const LS_COLS  = TEACHER.lsCols;
+const LS_NOTES = TEACHER.lsNotes;
 
 function saveState() {
   try {
     localStorage.setItem(LS_ORDER, JSON.stringify(displayOrder));
     localStorage.setItem(LS_TAKEN, JSON.stringify(taken));
     localStorage.setItem(LS_COLS,  JSON.stringify(colOrder));
+    localStorage.setItem(LS_NOTES, JSON.stringify(notes));
   } catch(e) {}
+}
+
+function saveNote(code, value) {
+  const v = value.trim();
+  if (v) notes[code] = v; else delete notes[code];
+  saveState();
 }
 
 function loadState() {
@@ -561,6 +578,8 @@ function loadState() {
       initOrderDefault();
     }
     if (savedTaken) taken = JSON.parse(savedTaken);
+    const savedNotes = localStorage.getItem(LS_NOTES);
+    if (savedNotes) notes = JSON.parse(savedNotes);
     if (savedCols) {
       const validKeys = new Set(DEFAULT_COL_ORDER);
       const parsed    = JSON.parse(savedCols).filter(k => validKeys.has(k));
@@ -874,6 +893,7 @@ function exportJSON() {
     exported: new Date().toISOString(),
     order:    [...displayOrder],
     taken:    {...taken},
+    notes:    {...notes},
   };
   download(JSON.stringify(payload, null, 2), TEACHER.exportFile.replace('.txt','.json'), 'application/json');
 }
@@ -895,6 +915,10 @@ function importJSON(e) {
       taken = {};
       if (data.taken) {
         Object.keys(data.taken).forEach(c => { if (validCodes.has(c)) taken[c] = true; });
+      }
+      notes = {};
+      if (data.notes) {
+        Object.keys(data.notes).forEach(c => { if (validCodes.has(c)) notes[c] = data.notes[c]; });
       }
       saveState();
       applyFilters();
