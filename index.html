@@ -132,6 +132,15 @@
 
   /* Filter result count */
   .filter-count-pill { background: #e8f3ff; color: #4a7ab5; border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 700; border: 1.5px solid #bdd5f0; white-space: nowrap; align-self: flex-end; }
+
+  /* Export / Import dropdown */
+  .dropdown { position: relative; display: inline-block; }
+  .dropdown-menu { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: white; border: 1.5px solid #d0c8ee; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.12); min-width: 220px; z-index: 100; overflow: hidden; }
+  .dropdown-menu.open { display: block; }
+  .dropdown-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 14px; font-size: 12px; font-weight: 600; color: #444; background: none; border: none; cursor: pointer; text-align: left; transition: background .1s; white-space: nowrap; }
+  .dropdown-item:hover { background: #f5f3ff; color: #6b5fa0; }
+  .dropdown-item.item-import { border-top: 1px solid #ede9f5; }
+  .dropdown-item input[type=file] { display: none; }
 </style>
 </head>
 <body>
@@ -226,7 +235,17 @@
     <button class="btn btn-secondary" onclick="resetOrder()">Reset to default order</button>
     <button class="btn btn-reset" onclick="resetColOrder()">Reset column order</button>
     <button class="btn btn-danger" onclick="resetTaken()" id="resetTakenBtn" style="display:none">Reset all taken</button>
-    <button class="btn btn-primary" onclick="exportPreferences()">Export preference list</button>
+    <div class="dropdown" id="exportDropdown">
+      <button class="btn btn-primary" onclick="toggleExportMenu(event)">Export / Import ▾</button>
+      <div class="dropdown-menu" id="exportMenu">
+        <button class="dropdown-item" onclick="exportPreferences(); closeExportMenu()">📄 Export preference list (.txt)</button>
+        <button class="dropdown-item" onclick="exportJSON(); closeExportMenu()">💾 Export as JSON</button>
+        <label class="dropdown-item item-import">
+          📂 Import from JSON
+          <input type="file" accept=".json" onchange="importJSON(event)">
+        </label>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -569,6 +588,7 @@ function initOrder() {
 }
 
 function resetOrder() {
+  if (!confirm('Reset your preference ranking to the default order? Your current ranking will be lost.')) return;
   initOrderDefault();
   saveState();
   applyFilters();
@@ -820,13 +840,18 @@ function buildCombos() {
   });
 }
 
-// ── EXPORT ────────────────────────────────────────────────────────────────────
-function exportPreferences() {
-  const ranks = buildRankMap();
-  const ordered = displayOrder
-    .map(c => JOBMAP[c])
-    .filter(j => j && !taken[j.code]);
+// ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
+function toggleExportMenu(e) {
+  e.stopPropagation();
+  document.getElementById('exportMenu').classList.toggle('open');
+}
+function closeExportMenu() {
+  document.getElementById('exportMenu').classList.remove('open');
+}
+document.addEventListener('click', () => closeExportMenu());
 
+function exportPreferences() {
+  const ordered = displayOrder.map(c => JOBMAP[c]).filter(j => j && !taken[j.code]);
   let txt = TEACHER.exportHead;
   ordered.forEach((j, i) => {
     txt += `${i+1}. [${j.ctype} ${j.pct}%] ${j.school} — Code ${j.code}\n`;
@@ -834,17 +859,59 @@ function exportPreferences() {
     if (j.cv) txt += `   COMBO: ${j.cv}\n`;
     txt += `   Dates: ${j.s} to ${j.e}\n\n`;
   });
-
   const takenList = JOBS.filter(j => taken[j.code]);
   if (takenList.length) {
     txt += '\n--- TAKEN / UNAVAILABLE ---\n';
     takenList.forEach(j => txt += `  ✕ [${j.ctype} ${j.pct}%] ${j.school} — Code ${j.code}\n`);
   }
+  download(txt, TEACHER.exportFile, 'text/plain');
+}
 
-  const blob = new Blob([txt], {type:'text/plain'});
+function exportJSON() {
+  const payload = {
+    teacher:  TEACHER.lsOrder.replace('_order',''),
+    exported: new Date().toISOString(),
+    order:    [...displayOrder],
+    taken:    {...taken},
+  };
+  download(JSON.stringify(payload, null, 2), TEACHER.exportFile.replace('.txt','.json'), 'application/json');
+}
+
+function importJSON(e) {
+  closeExportMenu();
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.order || !Array.isArray(data.order)) throw new Error('Invalid format');
+      const validCodes = new Set(JOBS.map(j => j.code));
+      const preserved  = data.order.filter(c => validCodes.has(c));
+      const preservedSet = new Set(preserved);
+      const newJobs = JOBS.filter(j => !preservedSet.has(j.code)).sort(defaultSort).map(j => j.code);
+      displayOrder = [...preserved, ...newJobs];
+      taken = {};
+      if (data.taken) {
+        Object.keys(data.taken).forEach(c => { if (validCodes.has(c)) taken[c] = true; });
+      }
+      saveState();
+      applyFilters();
+      updateCombos();
+      alert('Preferences imported successfully!');
+    } catch(err) {
+      alert('Could not read file. Make sure it is a JSON file exported from this app.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function download(content, filename, type) {
+  const blob = new Blob([content], {type});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = TEACHER.exportFile;
+  a.download = filename;
   a.click();
 }
 
