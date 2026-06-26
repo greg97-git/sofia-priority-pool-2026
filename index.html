@@ -59,6 +59,7 @@
   /* Category colours */
   .row-3402 { background: #dbeafe; }
   .row-3403 { background: #dcfce7; }
+  .row-3404 { background: #fce7f3; }
   .row-combo { background: #fef9c3; }
 
   /* TAKEN state */
@@ -82,6 +83,8 @@
   .badge { display: inline-block; border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 700; white-space: nowrap; }
   .b-3402 { background: #2563eb; color: white; }
   .b-3403 { background: #16a34a; color: white; }
+  .b-3404 { background: #be185d; color: white; }
+  .b-E1   { background: #4f46e5; color: white; }
   .b-E2   { background: #7c3aed; color: white; }
   .b-E3   { background: #0891b2; color: white; }
   .b-E4   { background: #d97706; color: white; }
@@ -124,8 +127,8 @@
 
 <header>
   <div>
-    <h1>Sofia Gonzalez-Herrero — LBPSB Priority Pool 2026–27</h1>
-    <p>Categories: 3403 English Generalist (main) · 3402 Kindergarten (hidden) · Priority: 02-118 · Qualifié français: NON</p>
+    <h1 id="teacherTitle"></h1>
+    <p id="teacherSubtitle"></p>
   </div>
   <div class="session-toggle" id="sessionToggle" onclick="toggleSession()">
     <div class="dot"></div>
@@ -138,20 +141,15 @@
 </div>
 
 <div class="stats-bar" id="statsBar">
-  <div class="stat"><div class="n" id="s-total">46</div><div class="l">Total posts</div></div>
-  <div class="stat"><div class="n" id="s-avail">46</div><div class="l">Still available</div></div>
-  <div class="stat"><div class="n" id="s-ge50">30</div><div class="l">Available ≥50%</div></div>
-  <div class="stat"><div class="n" id="s-e2">8</div><div class="l">E2 Real available</div></div>
+  <div class="stat"><div class="n" id="s-total">—</div><div class="l">Total posts</div></div>
+  <div class="stat"><div class="n" id="s-avail">—</div><div class="l">Still available</div></div>
+  <div class="stat"><div class="n" id="s-ge50">—</div><div class="l">Available ≥50%</div></div>
+  <div class="stat"><div class="n" id="s-e2">—</div><div class="l" id="s-e2-label"></div></div>
   <div class="stat"><div class="n" id="s-taken">0</div><div class="l">Taken so far</div></div>
-  <div class="stat"><div class="n" id="s-showing">46</div><div class="l">Showing</div></div>
+  <div class="stat"><div class="n" id="s-showing">—</div><div class="l">Showing</div></div>
 </div>
 
-<div class="rules-banner">
-  <strong>Key rules:</strong>
-  &nbsp;⚠️ <strong>Right of Refusal</strong> — if a post ≥50% in your category is available at your turn, you must pick it or formally refuse. &nbsp;|&nbsp;
-  🔗 <strong>Combinations</strong> — the largest single post must be in 3402 or 3403. Need 100 days experience for E8 combos (you have ~318 days ✓). &nbsp;|&nbsp;
-  🌟 <strong>E2 contracts</strong> lead to tenure — prioritize these above all others.
-</div>
+<div class="rules-banner" id="rulesBanner"></div>
 
 <div class="drag-hint">
   ⠿ &nbsp;<strong>Drag rows</strong> to set your preference order · <strong>Drag column headers</strong> to reorder columns. Both are saved automatically and persist on reload. Use the reset buttons to restore defaults.
@@ -160,21 +158,11 @@
 <div class="controls">
   <div class="filter-group">
     <label>Category</label>
-    <select id="f-cat" onchange="applyFilters()">
-      <option value="">All</option>
-      <option value="3402">3402 Kindergarten</option>
-      <option value="3403">3403 English Generalist</option>
-    </select>
+    <select id="f-cat" onchange="applyFilters()"></select>
   </div>
   <div class="filter-group">
     <label>Contract Type</label>
-    <select id="f-type" onchange="applyFilters()">
-      <option value="">All</option>
-      <option value="E2">E2 Real Year-Round</option>
-      <option value="E3">E3 Partial Real</option>
-      <option value="E4">E4 Partial &lt;34%</option>
-      <option value="E8">E8 Replacement</option>
-    </select>
+    <select id="f-type" onchange="applyFilters()"></select>
   </div>
   <div class="filter-group">
     <label>School Start</label>
@@ -235,18 +223,49 @@
   <div class="combo-cards" id="comboCards"></div>
 </div>
 
-<div class="legend">
-  <div class="legend-item"><div class="legend-swatch" style="background:#dbeafe"></div> 3402 Kindergarten</div>
+<div class="legend" id="legend"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   TEACHER CONFIG — update this block when the job list changes or when
+   adapting for a different teacher. Everything below "SHARED APP LOGIC"
+   is identical across all teacher files.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const TEACHER = {
+  pageTitle:   "Sofia Gonzalez-Herrero — LBPSB Priority Pool 2026–27",
+  subtitle:    "Categories: 3403 English Generalist (main) · 3402 Kindergarten (hidden) · Priority: 02-118 · Qualifié français: NON",
+  rulesBanner: `<strong>Key rules:</strong>
+  &nbsp;⚠️ <strong>Right of Refusal</strong> — if a post ≥50% in your category is available at your turn, you must pick it or formally refuse. &nbsp;|&nbsp;
+  🔗 <strong>Combinations</strong> — the largest single post must be in 3402 or 3403. Need 100 days experience for E8 combos (you have ~318 days ✓). &nbsp;|&nbsp;
+  🌟 <strong>E2 contracts</strong> lead to tenure — prioritize these above all others.`,
+  catOptions:  `<option value="">All</option>
+      <option value="3402">3402 Kindergarten</option>
+      <option value="3403">3403 English Generalist</option>`,
+  typeOptions: `<option value="">All</option>
+      <option value="E2">E2 Real Year-Round</option>
+      <option value="E3">E3 Partial Real</option>
+      <option value="E4">E4 Partial &lt;34%</option>
+      <option value="E8">E8 Replacement</option>`,
+  legend:      `<div class="legend-item"><div class="legend-swatch" style="background:#dbeafe"></div> 3402 Kindergarten</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#dcfce7"></div> 3403 English Generalist</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#fef9c3"></div> Valid combination available</div>
   <div class="legend-item"><div class="badge b-E2">E2</div> Real year-round (best)</div>
   <div class="legend-item"><div class="badge b-E3">E3</div> Partial real</div>
   <div class="legend-item"><div class="badge b-E4">E4</div> Partial &lt;34%</div>
   <div class="legend-item"><div class="badge b-E8">E8</div> Replacement</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#e5e7eb; border:1px solid #9ca3af"></div> Taken / crossed out</div>
-</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e5e7eb; border:1px solid #9ca3af"></div> Taken / crossed out</div>`,
+  lsOrder:     'sofia2026_order',
+  lsTaken:     'sofia2026_taken',
+  lsCols:      'sofia2026_colorder',
+  exportFile:  'Sofia_Preferences_2026.txt',
+  exportHead:  'SOFIA — PRIORITY POOL PREFERENCES 2026-27\n==========================================\n\n',
+  e2StatLabel: 'E2 Real available',
+  isE2:        j => j.ctype === 'E2',
+  rowClass:    j => j.cv ? 'row-combo' : j.cat === '3402' ? 'row-3402' : 'row-3403',
+  typeOrder:   {E2:0, E3:1, E4:2, E8:3},
+};
 
-<script>
 const JOBS = [
   {code:"10836",cat:"3402",pct:100,ctype:"E2",grade:"Kindergarten (K4)",school:"LaSalle Elementary Junior",location:"Lasalle",start_time:"Late Start",desc:"Real year-round. Post contains 3402/3405/3404/3403. Travel between JR & SR campus.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
   {code:"7680",cat:"3402",pct:100,ctype:"E2",grade:"Kindergarten",school:"Wilder Penfield",location:"DDO",start_time:"Late Start",desc:"Real year-round.",s:"2026-07-01",e:"2027-06-30",cv:"",ci:"",ror:true},
@@ -305,6 +324,11 @@ const COMBOS = [
   {title:"Beacon Hill — Replacement combo 33%", anchor:"7263", total:33, type:"E8", parts:[{code:"7263",cat:"3402",pct:20,label:"3402 Kindergarten K4 (majority ✓)"},{code:"1238",cat:"3403",pct:5,label:"3403 English 5%"},{code:"10792",cat:"3406",pct:8,label:"3406 Art 8%"}], note:"DO NOT include 1722 (3405 22%) — would flip majority."},
   {title:"St. Charles — 30% combo (E4 + E8)", anchor:"10780", total:30, type:"E4+E8", parts:[{code:"10780",cat:"3403",pct:20,label:"3403 English Generalist (majority ✓)"},{code:"7337",cat:"3402",pct:10,label:"3402 Kindergarten K4"}], note:"DO NOT include 7819 (3405 30%) — would flip majority."},
 ];
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARED APP LOGIC — do not edit below this line for teacher-specific
+   changes. This section is identical across all teacher files.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 // ── CATEGORY NAMES ────────────────────────────────────────────────────────────
 const CAT_NAMES = {
@@ -457,16 +481,16 @@ let sessionMode  = false;
 let dragSrc      = null; // code being dragged
 
 // Default order: E2 > E3 > E4 > E8, within each by pct desc
-const DEFAULT_TYPE_ORDER = {E2:0, E3:1, E4:2, E8:3};
+const DEFAULT_TYPE_ORDER = TEACHER.typeOrder;
 function defaultSort(a, b) {
   const td = DEFAULT_TYPE_ORDER[a.ctype] - DEFAULT_TYPE_ORDER[b.ctype];
   return td !== 0 ? td : b.pct - a.pct;
 }
 
 // ── LOCALSTORAGE ──────────────────────────────────────────────────────────────
-const LS_ORDER = 'sofia2026_order';
-const LS_TAKEN = 'sofia2026_taken';
-const LS_COLS  = 'sofia2026_colorder';
+const LS_ORDER = TEACHER.lsOrder;
+const LS_TAKEN = TEACHER.lsTaken;
+const LS_COLS  = TEACHER.lsCols;
 
 function saveState() {
   try {
@@ -670,7 +694,7 @@ function updateStats(filtered) {
   document.getElementById('s-total').textContent = JOBS.length;
   document.getElementById('s-avail').textContent = avail.length;
   document.getElementById('s-ge50').textContent  = avail.filter(j => j.pct >= 50).length;
-  document.getElementById('s-e2').textContent    = avail.filter(j => j.ctype === 'E2').length;
+  document.getElementById('s-e2').textContent    = avail.filter(TEACHER.isE2).length;
   document.getElementById('s-taken').textContent = takenCount;
   document.getElementById('s-showing').textContent = filtered.length;
   document.getElementById('s-ge50').parentElement.classList.toggle('alert',
@@ -687,7 +711,7 @@ function render(filtered) {
   tbody.innerHTML = '';
   filtered.forEach((j, rowIdx) => {
     const isTaken = !!taken[j.code];
-    const baseClass = j.cv ? 'row-combo' : (j.cat === '3402' ? 'row-3402' : 'row-3403');
+    const baseClass = TEACHER.rowClass(j);
     const stripeClass = rowIdx % 2 === 1 ? ' row-stripe' : '';
     const tr = document.createElement('tr');
     tr.id        = 'row-' + j.code;
@@ -772,7 +796,7 @@ function exportPreferences() {
     .map(c => JOBMAP[c])
     .filter(j => j && !taken[j.code]);
 
-  let txt = 'SOFIA — PRIORITY POOL PREFERENCES 2026-27\n==========================================\n\n';
+  let txt = TEACHER.exportHead;
   ordered.forEach((j, i) => {
     txt += `${i+1}. [${j.ctype} ${j.pct}%] ${j.school} — Code ${j.code}\n`;
     txt += `   Category: ${j.cat} | Grade: ${j.grade} | Location: ${j.location}\n`;
@@ -789,11 +813,22 @@ function exportPreferences() {
   const blob = new Blob([txt], {type:'text/plain'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'Sofia_Preferences_2026.txt';
+  a.download = TEACHER.exportFile;
   a.click();
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+function initUI() {
+  document.getElementById('teacherTitle').textContent    = TEACHER.pageTitle;
+  document.getElementById('teacherSubtitle').textContent = TEACHER.subtitle;
+  document.getElementById('rulesBanner').innerHTML       = TEACHER.rulesBanner;
+  document.getElementById('s-e2-label').textContent      = TEACHER.e2StatLabel;
+  document.getElementById('f-cat').innerHTML             = TEACHER.catOptions;
+  document.getElementById('f-type').innerHTML            = TEACHER.typeOptions;
+  document.getElementById('legend').innerHTML            = TEACHER.legend;
+}
+
+initUI();
 initOrder();
 renderThead();
 buildCombos();
